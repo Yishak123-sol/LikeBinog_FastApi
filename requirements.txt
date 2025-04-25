@@ -1,2 +1,7 @@
 fastapi
-uvicorn
+uvicorn[standard]
+sqlalchemy
+asyncpg
+python-dotenv
+alembic
+gunicorn
