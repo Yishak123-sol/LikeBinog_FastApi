@@ -96,8 +96,33 @@ def get_all_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"User does not have permission to get all Users",
         )
-
     users = db.query(models.User).filter(models.User.role == "user").all()
+    if not users:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No Users found",
+        )
+
+    return users
+
+
+@router.get("/all-role-users", response_model=List[schemas.UserOut])
+def get_all_role_user(
+    db: Session = Depends(database.get_db),
+    current_user: int = Depends(oauth2.get_current_user),
+):
+    if not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if current_user.role.value != "owner":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"User does not have permission to get all Users",
+        )
+    users = db.query(models.User).all()
     if not users:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
