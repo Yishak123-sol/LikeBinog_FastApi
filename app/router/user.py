@@ -36,7 +36,6 @@ def create_user(
     db: Session = Depends(database.get_db),
     current_user: int = Depends(oauth2.get_current_user),
 ):
-
     if not current_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -49,15 +48,18 @@ def create_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"User does not have permission to create a user",
         )
-    if current_user.role.value == "superagent":
+
+    if current_user.role.value == "superagent" and user.role.value != "user":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Superagent does not have permission to create a user",
+            detail=f"Superagent does not have permission to create a owner, Manager and Superagent",
         )
-    if current_user.role.value == "manager" and user.role.value != "user":
+    if current_user.role.value == "manager" and (
+        user.role.value == "manager" or user.role.value == "owner"
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Manager does not have permission to create a superagent or Manager",
+            detail=f"Manager does not have permission to create a owner or Manager",
         )
 
     db_user = db.query(models.User).filter(models.User.phone == user.phone).first()
@@ -270,10 +272,17 @@ def get_users_created_by_user_id(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    user = db.query(models.User).filter(models.User.id == id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User not found",
+        )
+
     users = (
         db.query(models.User)
         .filter(
-            (models.User.parent_id == id) & (models.User.role == "superagent"),
+            (models.User.role == "superagent"),
         )
         .all()
     )
@@ -284,7 +293,24 @@ def get_users_created_by_user_id(
             detail=f"No users found created by user with id {id}",
         )
 
-    return users
+    if user.role.value == "owner":
+        return users
+
+    all_users = (
+        db.query(models.User)
+        .filter(
+            (models.User.parent_id == id) & (models.User.role == "superagent"),
+        )
+        .all()
+    )
+
+    if not all_users:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No users found created by user with id {id}",
+        )
+
+    return all_users
 
 
 @router.get("/child/user/{id}", response_model=List[schemas.UserOut])
@@ -299,6 +325,30 @@ def get_users_created_by_user_id(
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    user = db.query(models.User).filter(models.User.id == id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User not found",
+        )
+
+    all_users = (
+        db.query(models.User)
+        .filter(
+            (models.User.role == "user"),
+        )
+        .all()
+    )
+
+    if not all_users:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No users found created by user with id {id}",
+        )
+
+    if user.role.value == "owner":
+        return all_users
 
     users = (
         db.query(models.User)

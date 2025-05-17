@@ -99,17 +99,31 @@ def get_game_transaction_by_userid(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    game_transaction = (
+    user = db.query(models.User).filter(models.User.id == id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    game_transaction = db.query(models.GameTransaction).all()
+    if not game_transaction:
+        raise HTTPException(status_code=404, detail="There is no game transaction yet.")
+
+    if user.role.value == "owner":
+        return game_transaction
+
+    game_transactions = (
         db.query(models.GameTransaction)
         .filter(models.GameTransaction.owner_id == id)
         .all()
     )
-    if not game_transaction:
+    if not game_transactions:
         raise HTTPException(
             status_code=404, detail="you don't have a game transaction yet."
         )
 
-    return game_transaction
+    return game_transactions
 
 
 @router.get("/my-game-transaction")
